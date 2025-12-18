@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 /// <summary>
 /// Provides factory methods for creating deferred loggers.
 /// </summary>
-public static class Logger {
+public static partial class Logger {
 
 	/// <summary>
 	/// Creates a new deferred logger instances
@@ -30,7 +30,7 @@ public static class Logger {
 	public static IEnumerable<string> GetErrors() {
 		return DeferredLogState.LogQueue
 			.Where(entry => entry.Level == LogLevel.Error)
-			.Select(entry => entry.Message);
+			.Select(entry => FormatMessage(entry.Message, entry.Args));
 	}
 
 	/// <summary>
@@ -50,7 +50,7 @@ public static class Logger {
 	public static IEnumerable<(LogLevel Level, string Message)> GetAll(LogLevel level) {
 		return DeferredLogState.LogQueue
 			.Where(entry => entry.Level == level)
-			.Select(entry => (entry.Level, entry.Message));
+			.Select(entry => (entry.Level, FormatMessage(entry.Message, entry.Args)));
 	}
 
 	/// <summary>
@@ -59,7 +59,27 @@ public static class Logger {
 	/// <returns></returns>
 	public static IEnumerable<(LogLevel Level, string Message)> GetAll() {
 		return DeferredLogState.LogQueue
-			.Select(entry => (entry.Level, entry.Message));
+			.Select(entry => (entry.Level, FormatMessage(entry.Message, entry.Args)));
 	}
+
+	private static string FormatMessage(string template, object[] args) {
+		if (args.Length == 0) {
+			return template;
+		}
+
+		// Convert structured logging placeholders {Name} to positional {0}, {1}, etc.
+		var index = 0;
+		var formatted = StructuredPositionRegEx().Replace(template, _ => $"{{{index++}}}"
+);
+
+		try {
+			return string.Format(formatted, args);
+		} catch (FormatException) {
+			return template;
+		}
+	}
+
+	[System.Text.RegularExpressions.GeneratedRegex(@"\{[^}]+\}")]
+	private static partial System.Text.RegularExpressions.Regex StructuredPositionRegEx();
 
 }
